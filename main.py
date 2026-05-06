@@ -125,7 +125,7 @@ def show_message(message):
     os.system("clear")
 
 
-def draw(selected_index):
+def draw(selected_index, hidden = False):
     width, _ = shutil.get_terminal_size()
     width = min(width, 100)
 
@@ -180,7 +180,10 @@ def draw(selected_index):
         make_effect(width, reversed(range(5)))
     )
 
-    print(picture + f"\033[{picture.count(chr(10)) + 1}F", end="", flush=True)
+    if not hidden:
+        print(picture + f"\033[{picture.count(chr(10)) + 1}F", end="", flush=True)
+    
+    return picture
 
 
 def main():
@@ -222,6 +225,21 @@ def main():
         print("\033[?25h\033[0m", end="", flush=True)
         os.system("clear")
 
+def intro():
+    menu = draw(0, True)
+    
+    w, _ = shutil.get_terminal_size()
+    w = min(w, 100)
+    h = len(menu.split("\n"))
+    
+    
+    picture = "\n".join([
+        ("#" * (w))
+        for y in range(h)
+    ])
+    
+    print(picture)
 
 if __name__ == "__main__":
-    main()
+    #main()
+    intro()
