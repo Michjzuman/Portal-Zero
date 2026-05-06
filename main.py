@@ -3,6 +3,8 @@ import shutil
 from pathlib import Path
 import json
 import time
+import random
+import math
 
 with open("hosts.json", "r") as file:
     hosts: list[list] = json.load(file)
@@ -10,15 +12,25 @@ with open("hosts.json", "r") as file:
 def draw():
     w, h = shutil.get_terminal_size()
     w = min(w, 100)
-    h = min(h, 25)
     
     table = [
         f"{host.get('emoji')}  {host.get('title')}"
         for host in hosts
     ]
     
+    table_max = max(len(l) for l in table)
+    
+    effect_symbols = "▪▫◼◻■□▢▣"
+    
     picture = (
-        ("#" * w) +
+        "\n".join([
+            ("".join([
+                random.choice(list(effect_symbols))
+                if random.randint(0, a) == 0 else " "
+                for _ in range(w)
+            ]))
+            for a in range(5)
+        ]) +
         "\n\n" +
         "\n".join([
             f"{' ' * (w - len(line))}{line}"
@@ -29,18 +41,25 @@ def draw():
             ]
         ]) +
         "\n\n" +
-        f"╭────{'─' * max([len(l) for l in table])}───────────╮\n" +
-        f"\n├────{'─' * max([len(l) for l in table])}───────────┤\n"
+        f"╭────{'─' * table_max}───────────╮\n" +
+        f"\n├────{'─' * table_max}───────────┤\n"
         .join([
             "\n".join([
-                f"│    {' ' * max([len(l) for l in table])}    ╭────╮ │",
-                f"│  {line} {' ' * (max([len(l) for l in table]) - len(line))}    │ ➜  │ │",
-                f"│    {' ' * max([len(l) for l in table])}    ╰────╯ │"
+                f"│    {' ' * table_max}    ╭────╮ │",
+                f"│  {line} {' ' * (table_max - len(line))}    │ ➜  │ │",
+                f"│    {' ' * table_max}    ╰────╯ │"
             ])
             for line in table
         ]) +
-        f"\n╰────{'─' * max([len(l) for l in table])}───────────╯\n" +
-        ("#" * w)
+        f"\n╰────{'─' * table_max}───────────╯\n\n" +
+        "\n".join([
+            ("".join([
+                random.choice(list(effect_symbols))
+                if random.randint(0, a) == 0 else " "
+                for _ in range(w)
+            ]))
+            for a in reversed(range(5))
+        ])
     )
     
     # ─  │    └  ┘  ├  ┤  ┬  ┴  ┼ ╭ ╮ ╰ ╯
@@ -49,7 +68,11 @@ def draw():
 
 
 
-os.system("clear")
+old_w = 10000
 while True:
+    w, h = shutil.get_terminal_size()
+    if old_w > w:
+        os.system("clear")
     draw()
+    old_w = w
     time.sleep(0.1)
