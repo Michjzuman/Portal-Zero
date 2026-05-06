@@ -1,78 +1,227 @@
 import os
 import shutil
-from pathlib import Path
 import json
 import time
 import random
-import math
+import sys
+import termios
+import tty
+import select
+import subprocess
 
 with open("hosts.json", "r") as file:
-    hosts: list[list] = json.load(file)
+    hosts = json.load(file)
 
-def draw():
-    w, h = shutil.get_terminal_size()
-    w = min(w, 100)
-    
+THEME = {
+    "reset": "\033[0m",
+    "effect": "\033[38;2;50;255;180m",
+    "logo": "\033[38;2;255;255;255m\033[1m",
+    "border": "\033[38;2;100;100;100m",
+    "text": "\033[38;2;230;255;250m",
+    "button_border": "\033[38;2;100;100;100m",
+    "arrow": "\033[38;2;100;100;100m",
+    "selected_box": "\033[38;2;255;255;255m\033[1m",
+    "selected_button": "\033[38;2;0;200;240m\033[1m",
+    "selected_arrow": "\033[38;2;0;200;240m\033[1m",
+}
+
+FPS = 10
+FRAME_TIME = 1 / FPS
+
+EFFECT_SYMBOLS = "▪▫◼◻■□▢▣"
+
+LOGO = [
+    "▄▄▄ ▄▄▄ ▄▄▄ ▄▄▄ ▄▄▄ ▄   █████ ███████ █████ ███████  ",
+    "█▄█ █ █ █▄█  █  █▄█ █     ▄▀  █▄▄▄▄▄█ █▄▄▄█ █     █  ",
+    "█   █▄█ █▀▄  █  █ █ █▄▄ ▄█▄▄▄ █▄▄▄▄▄▄ █ ▀▄▄ █▄▄▄▄▄█  ",
+]
+
+
+def color(name, text):
+    return f"{THEME[name]}{text}{THEME['reset']}"
+
+
+def safe_len(text):
+    # Grobe Terminal-Breite: Emojis werden meistens als 2 Spalten gerendert.
+    length = 0
+
+    for char in text:
+        length += 2 if ord(char) > 0xFFFF else 1
+
+    return length
+
+
+def read_key():
+    if not select.select([sys.stdin], [], [], 0)[0]:
+        return None
+
+    key = sys.stdin.read(1)
+
+    if key == "\033":
+        key += sys.stdin.read(2)
+
+    return key
+
+
+def make_effect(width, direction):
+    return "\n".join([
+        "".join([
+            color("effect", random.choice(EFFECT_SYMBOLS))
+            if random.randint(0, chance) == 0 else " "
+            for _ in range(width)
+        ])
+        for chance in direction
+    ])
+
+
+def build_ssh_command(host):
+    user = host.get("user")
+    hostname = host.get("host")
+    port = host.get("port", 22)
+
+    if not hostname:
+        return None
+
+    target = hostname
+
+    if user:
+        target = f"{user}@{hostname}"
+
+    return ["ssh", "-p", str(port), target]
+
+
+def launch_host(host):
+    command = build_ssh_command(host)
+
+    if command is None:
+        show_message("Host hat keine Adresse.")
+        return
+
+    os.system("clear")
+    print("\033[?25h\033[0m", end="", flush=True)
+    print(color("logo", "PORTAL ZERO"))
+    print()
+    print(color("text", f"Verbinde mit {host.get('title', host.get('host', 'Unknown'))}..."))
+    print(color("border", " ".join(command)))
+    print()
+
+    subprocess.run(command)
+
+    print()
+    input(color("text", "Verbindung beendet. Enter drücken, um zum Launcher zurückzukehren..."))
+    print("\033[?25l", end="", flush=True)
+    os.system("clear")
+
+
+def show_message(message):
+    os.system("clear")
+    print("\033[?25h\033[0m", end="", flush=True)
+    print(color("logo", "PORTAL ZERO"))
+    print()
+    print(color("text", message))
+    print()
+    input(color("text", "Enter drücken, um zurückzukehren..."))
+    print("\033[?25l", end="", flush=True)
+    os.system("clear")
+
+
+def draw(selected_index):
+    width, _ = shutil.get_terminal_size()
+    width = min(width, 100)
+
     table = [
-        f"{host.get('emoji')}  {host.get('title')}"
+        f"{host.get('emoji', '#')}  {host.get('title', 'No title')}"
         for host in hosts
     ]
-    
-    table_max = max(len(l) for l in table)
-    
-    effect_symbols = "▪▫◼◻■□▢▣"
-    
+
+    if not table:
+        table = ["No hosts found"]
+
+    table_max = max(safe_len(line) for line in table)
+
+    logo = "\n".join([
+        f"{' ' * max(0, width - len(line))}{color('logo', line)}"
+        for line in LOGO
+    ])
+
+    table_top = color("border", f"╭────{'─' * table_max}───────────╮")
+    table_separator = color("border", f"├────{'─' * table_max}───────────┤")
+    table_bottom = color("border", f"╰────{'─' * table_max}───────────╯")
+
+    rows = []
+
+    for index, line in enumerate(table):
+        selected = index == selected_index
+        box_color = "selected_box" if selected else "border"
+        button_color = "selected_button" if selected else "button_border"
+        arrow_color = "selected_arrow" if selected else "arrow"
+        text_color = "selected_box" if selected else "text"
+        padding = " " * (table_max - safe_len(line))
+
+        rows.append("\n".join([
+            f"{color(box_color, '│')}    {' ' * table_max}    {color(button_color, '╭────╮')} {color(box_color, '│')}",
+            f"{color(box_color, '│')}  {color(text_color, line)} {padding}     {color(button_color, '│')} {color(arrow_color, '➜')}  {color(button_color, '│')} {color(box_color, '│')}",
+            f"{color(box_color, '│')}    {' ' * table_max}    {color(button_color, '╰────╯')} {color(box_color, '│')}",
+        ]))
+
+    table_rows = f"\n{table_separator}\n".join(rows)
+
     picture = (
-        "\n".join([
-            ("".join([
-                random.choice(list(effect_symbols))
-                if random.randint(0, a) == 0 else " "
-                for _ in range(w)
-            ]))
-            for a in range(5)
-        ]) +
+        make_effect(width, range(5)) +
         "\n\n" +
-        "\n".join([
-            f"{' ' * (w - len(line))}{line}"
-            for line in [
-                "▄▄▄ ▄▄▄ ▄▄▄ ▄▄▄ ▄▄▄ ▄   █████ ███████ █████ ███████  ",
-                "█▄█ █ █ █▄█  █  █▄█ █     ▄▀  █▄▄▄▄▄█ █▄▄▄█ █     █  ",
-                "█   █▄█ █▀▄  █  █ █ █▄▄ ▄█▄▄▄ █▄▄▄▄▄▄ █ ▀▄▄ █▄▄▄▄▄█  ",
-            ]
-        ]) +
+        logo +
         "\n\n" +
-        f"╭────{'─' * table_max}───────────╮\n" +
-        f"\n├────{'─' * table_max}───────────┤\n"
-        .join([
-            "\n".join([
-                f"│    {' ' * table_max}    ╭────╮ │",
-                f"│  {line} {' ' * (table_max - len(line))}    │ ➜  │ │",
-                f"│    {' ' * table_max}    ╰────╯ │"
-            ])
-            for line in table
-        ]) +
-        f"\n╰────{'─' * table_max}───────────╯\n\n" +
-        "\n".join([
-            ("".join([
-                random.choice(list(effect_symbols))
-                if random.randint(0, a) == 0 else " "
-                for _ in range(w)
-            ]))
-            for a in reversed(range(5))
-        ])
+        table_top +
+        "\n" +
+        table_rows +
+        "\n" +
+        table_bottom +
+        "\n\n" +
+        make_effect(width, reversed(range(5)))
     )
-    
-    # ─  │    └  ┘  ├  ┤  ┬  ┴  ┼ ╭ ╮ ╰ ╯
-    
-    print(picture + f"\033[{picture.count('\n') + 1}F", end = "", flush = True)
+
+    print(picture + f"\033[{picture.count(chr(10)) + 1}F", end="", flush=True)
 
 
+def main():
+    selected_index = 0
+    old_width = 10000
+    old_settings = termios.tcgetattr(sys.stdin)
 
-old_w = 10000
-while True:
-    w, h = shutil.get_terminal_size()
-    if old_w > w:
+    try:
+        tty.setcbreak(sys.stdin.fileno())
+        print("\033[?25l", end="", flush=True)
+
+        while True:
+            frame_start = time.monotonic()
+            width, _ = shutil.get_terminal_size()
+            key = read_key()
+
+            if key == "\033[A" and hosts:
+                selected_index = (selected_index - 1) % len(hosts)
+            elif key == "\033[B" and hosts:
+                selected_index = (selected_index + 1) % len(hosts)
+            elif key in ["\n", "\r"] and hosts:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+                launch_host(hosts[selected_index])
+                old_settings = termios.tcgetattr(sys.stdin)
+                tty.setcbreak(sys.stdin.fileno())
+            elif key in ["q", "\x03"]:
+                break
+
+            if old_width != width:
+                os.system("clear")
+
+            draw(selected_index)
+            old_width = width
+
+            elapsed = time.monotonic() - frame_start
+            time.sleep(max(0, FRAME_TIME - elapsed))
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        print("\033[?25h\033[0m", end="", flush=True)
         os.system("clear")
-    draw()
-    old_w = w
-    time.sleep(0.1)
+
+
+if __name__ == "__main__":
+    main()
