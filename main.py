@@ -8,6 +8,7 @@ import termios
 import tty
 import select
 import subprocess
+import math
 
 with open("hosts.json", "r") as file:
     hosts = json.load(file)
@@ -17,6 +18,7 @@ THEME = {
     "effect": "\033[38;2;50;255;180m",
     "logo": "\033[38;2;255;255;255m\033[1m",
     "border": "\033[38;2;100;100;100m",
+    "bg": "\033[38;2;100;100;100m",
     "text": "\033[38;2;230;255;250m",
     "button_border": "\033[38;2;100;100;100m",
     "arrow": "\033[38;2;100;100;100m",
@@ -228,17 +230,81 @@ def main():
 def intro():
     menu = draw(0, True)
     
-    w, _ = shutil.get_terminal_size()
-    w = min(w, 100)
-    h = len(menu.split("\n"))
+    os.system("clear")
     
+    w, h = shutil.get_terminal_size()
+    #w, _ = shutil.get_terminal_size()
+    #w = min(w, 100)
+    #h = len(menu.split("\n"))
+    
+    center_x = w / 2
+    center_y = h / 2
     
     picture = "\n".join([
-        ("#" * (w))
-        for y in range(h)
+        "".join([random.choice(EFFECT_SYMBOLS + "") for _ in range(w)])
+        for _ in range(h)
     ])
     
-    print(picture)
+    pixels_w = w
+    pixels_h = h
+    pixels = [
+        (
+            pixel,
+            center_x + x - round(pixels_w/2),
+            center_y + y - round(pixels_h/2),
+            f"""\033[38;2;{100};{round(max(100, min(255, math.sqrt(
+                (center_x - (x - round(pixels_w/4)))**2 +
+                (center_y - (y - round(pixels_h/4)))**2
+            ) / 60 * 255)))};{round(max(100, min(120, math.sqrt(
+                (center_x + (x - round(pixels_w/4)))**2 +
+                (center_y + (y - round(pixels_h/4)))**2
+            ) / 60 * 255)))}m"""
+        )
+        for y, line in enumerate(picture.split("\n")[:pixels_h])
+        for x, pixel in enumerate(line[:pixels_w])
+        if pixel != " "
+    ]
+    
+    while True:
+        print(
+            picture + "\033[" + str(len(picture.split('\n'))) + "F",
+            end="", flush=True
+        )
+        
+        new_lines = [[" " for _ in range(w)] for _ in range(h)]
+        new_pixels = []
+
+        for char, x, y, color_code in pixels:
+            dx = x - center_x
+            dy = y - center_y
+
+            radius = math.hypot(dx, dy)
+            angle = math.atan2(dy, dx)
+
+            swirl_strength = 0.1
+            speed = swirl_strength / max(1, radius / 8)
+
+            angle += speed
+            radius *= 0.999
+
+            x = center_x + math.cos(angle) * radius
+            y = center_y + math.sin(angle) * radius
+
+            new_pixels.append((char, x, y, color_code))
+
+            ix = round(x)
+            iy = round(y)
+
+            if 0 <= ix < w and 0 <= iy < h:
+                new_lines[iy][ix] = color_code + char + THEME["reset"]
+
+        pixels = new_pixels
+        picture = (
+            "\n".join(["".join(line) for line in new_lines])
+            .replace(" ", color("bg", "."))
+        )
+        
+        time.sleep(0.05)
 
 if __name__ == "__main__":
     #main()
