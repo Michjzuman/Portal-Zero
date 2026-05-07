@@ -237,16 +237,17 @@ def intro():
     #w = min(w, 100)
     #h = len(menu.split("\n"))
     
-    center_x = w / 2
+    center_x = w / 4
     center_y = h / 2
     
     picture = "\n".join([
-        "".join([random.choice(EFFECT_SYMBOLS + "") for _ in range(w)])
+        " " for _ in range(round(w/2))
         for _ in range(h)
     ])
     
     pixels_w = w
     pixels_h = h
+    '''
     pixels = [
         (
             pixel,
@@ -264,6 +265,27 @@ def intro():
         for x, pixel in enumerate(line[:pixels_w])
         if pixel != " "
     ]
+    '''
+    
+    radius = max(round(w/4), round(h/2))
+    quantity = 20
+    layers = 500
+    pixels = [
+        (
+            random.choice(EFFECT_SYMBOLS),
+            center_x + (radius + layer) * math.sin(math.radians(360 / quantity * i)),
+            center_y + (radius + layer) * math.cos(math.radians(360 / quantity * i)),
+            f"""\033[38;2;{
+                [ 50, 100, 100, 100, 100][i % 4]
+            };{
+                [100, 200, 150, 200, 255][i % 4]
+            };{
+                [ 50, 100, 100, 100, 100][i % 4]
+            }m"""
+        )
+        for layer in range(layers)
+        for i in range(quantity)
+    ]
     
     while True:
         print(
@@ -271,7 +293,7 @@ def intro():
             end="", flush=True
         )
         
-        new_lines = [[" " for _ in range(w)] for _ in range(h)]
+        new_lines = [[" " for _ in range(round(w/2))] for _ in range(h)]
         new_pixels = []
 
         for char, x, y, color_code in pixels:
@@ -281,11 +303,11 @@ def intro():
             radius = math.hypot(dx, dy)
             angle = math.atan2(dy, dx)
 
-            swirl_strength = 0.1
-            speed = swirl_strength / max(1, radius / 8)
+            swirl_strength = 0.05
+            speed = swirl_strength / max(0, radius / 8)
 
             angle += speed
-            radius *= 0.999
+            radius *= 0.99
 
             x = center_x + math.cos(angle) * radius
             y = center_y + math.sin(angle) * radius
@@ -295,16 +317,16 @@ def intro():
             ix = round(x)
             iy = round(y)
 
-            if 0 <= ix < w and 0 <= iy < h:
+            if 0 <= ix < round(w/2) and 0 <= iy < h:
                 new_lines[iy][ix] = color_code + char + THEME["reset"]
 
         pixels = new_pixels
-        picture = (
-            "\n".join(["".join(line) for line in new_lines])
-            .replace(" ", color("bg", "."))
-        )
+        picture = "\n".join([
+            " ".join(line)
+            for line in new_lines
+        ])
         
-        time.sleep(0.05)
+        time.sleep(0.0)
 
 if __name__ == "__main__":
     #main()
