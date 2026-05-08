@@ -9,6 +9,9 @@ import tty
 import select
 import subprocess
 import math
+import re
+
+ansi_regex = re.compile(r"\033\[[0-9;]*m")
 
 with open("hosts.json", "r") as file:
     hosts = json.load(file)
@@ -133,7 +136,7 @@ def draw(selected_index, hidden = False):
     width = min(width, 100)
 
     table = [
-        f"{host.get('emoji', '#')}  {host.get('title', 'No title')}"
+        host.get('title', 'No title')
         for host in hosts
     ]
 
@@ -147,51 +150,57 @@ def draw(selected_index, hidden = False):
         for line in LOGO
     ])
 
-    table_top = color("border", f"╭────{'─' * table_max}───────────╮")
-    table_separator = color("border", f"├────{'─' * table_max}───────────┤")
-    table_bottom = color("border", f"╰────{'─' * table_max}───────────╯")
+    table_top = color("border", f"  ╭────{'─' * table_max}───────────╮")
+    table_separator = color("border", f"  ├────{'─' * table_max}───────────┤")
+    table_bottom = color("border", f"  ╰────{'─' * table_max}───────────╯")
 
     rows = []
 
     for index, line in enumerate(table):
         selected = index == selected_index
-        box_color = "selected_box" if selected else "border"
+        box_color = "border"
         button_color = "selected_button" if selected else "button_border"
         arrow_color = "selected_arrow" if selected else "arrow"
         text_color = "selected_box" if selected else "text"
         padding = " " * (table_max - safe_len(line))
 
         rows.append("\n".join([
-            f"{color(box_color, '│')}    {' ' * table_max}    {color(button_color, '╭────╮')} {color(box_color, '│')}",
-            f"{color(box_color, '│')}  {color(text_color, line)} {padding}     {color(button_color, '│')} {color(arrow_color, '➜')}  {color(button_color, '│')} {color(box_color, '│')}",
-            f"{color(box_color, '│')}    {' ' * table_max}    {color(button_color, '╰────╯')} {color(box_color, '│')}",
+            f"  {color(box_color, '│')}    {' ' * table_max}     {color(button_color, '╭───╮')} {color(box_color, '│')}",
+            f"  {color(box_color, '│')}  {color(text_color, line)} {padding}      {color(button_color, '│')} {color(arrow_color, '>')} {color(button_color, '│')} {color(box_color, '│')}",
+            f"  {color(box_color, '│')}    {' ' * table_max}     {color(button_color, '╰───╯')} {color(box_color, '│')}",
         ]))
 
     table_rows = f"\n{table_separator}\n".join(rows)
 
     picture = (
-        make_effect(width, range(5)) +
-        "\n\n" +
-        logo +
-        "\n\n" +
-        table_top +
-        "\n" +
-        table_rows +
-        "\n" +
-        table_bottom +
-        "\n\n" +
-        make_effect(width, reversed(range(5)))
+        f"{color('window_border', '▄' * (width+2))}\n" +
+        "\n".join([
+            f"{THEME['window_border']}█{THEME['reset']}{line}{' ' * (width - len(ansi_regex.sub('', line)))}{THEME['window_border']}█{THEME['reset']}"
+            for line in (
+                make_effect(width, range(5)) +
+                "\n\n" +
+                logo +
+                "\n\n" +
+                table_top +
+                "\n" +
+                table_rows +
+                "\n" +
+                table_bottom +
+                "\n\n" +
+                make_effect(width, reversed(range(5)))
+            ).split("\n")
+        ]) +
+        f"\n{color('window_border', '▀' * (width+2))}"
     )
 
     if not hidden:
-        print(picture + f"\033[{picture.count(chr(10)) + 1}F", end="", flush=True)
+        print(picture + f"\033[{picture.count(chr(10))}F", end="", flush=True)
     
     return picture
 
 
 def main():
     selected_index = 0
-    old_width = 10000
     old_settings = termios.tcgetattr(sys.stdin)
 
     try:
@@ -215,29 +224,22 @@ def main():
             elif key in ["q", "\x03"]:
                 break
 
-            if old_width != width:
-                os.system("clear")
-
             draw(selected_index)
-            old_width = width
 
             elapsed = time.monotonic() - frame_start
             time.sleep(max(0, FRAME_TIME - elapsed))
     finally:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
         print("\033[?25h\033[0m", end="", flush=True)
-        os.system("clear")
 
 
 def intro():
     menu = draw(0, True)
     
-    #os.system("clear")
-    
     #w, h = shutil.get_terminal_size()
     w, _ = shutil.get_terminal_size()
     w = min(w, 100)
-    h = len(menu.split("\n"))
+    h = len(menu.split("\n")) - 2
     
     #== Window Border =================
     
@@ -292,7 +294,9 @@ def intro():
     swirl_strength = 0.063
     zoom = 0.97
     
-    while True:
+    empty = True
+    while zoom < 1 or not empty:
+        empty = True
         new_lines = [[" " for _ in range(round(w/2))] for _ in range(h)]
         new_pixels = []
         
@@ -322,6 +326,7 @@ def intro():
 
             if 0 <= ix < round(w/2) and 0 <= iy < h:
                 new_lines[iy][ix] = color_code + char + THEME["reset"]
+                empty = False
 
         pixels = new_pixels
         picture = (
@@ -338,8 +343,8 @@ def intro():
             end="", flush=True
         )
         
-        time.sleep(0.0)
+        time.sleep(0.0001)
 
 if __name__ == "__main__":
-    #main()
     intro()
+    main()
