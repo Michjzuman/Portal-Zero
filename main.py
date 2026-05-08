@@ -25,6 +25,7 @@ THEME = {
     "selected_box": "\033[38;2;255;255;255m\033[1m",
     "selected_button": "\033[38;2;0;200;240m\033[1m",
     "selected_arrow": "\033[38;2;0;200;240m\033[1m",
+    "window_border": "\033[38;2;0;100;50m\033[1m",
 }
 
 FPS = 10
@@ -227,15 +228,38 @@ def main():
         print("\033[?25h\033[0m", end="", flush=True)
         os.system("clear")
 
+
 def intro():
     menu = draw(0, True)
     
-    os.system("clear")
+    #os.system("clear")
     
-    w, h = shutil.get_terminal_size()
-    #w, _ = shutil.get_terminal_size()
-    #w = min(w, 100)
-    #h = len(menu.split("\n"))
+    #w, h = shutil.get_terminal_size()
+    w, _ = shutil.get_terminal_size()
+    w = min(w, 100)
+    h = len(menu.split("\n"))
+    
+    #== Window Border =================
+    
+    steps = 100
+    for i in range(steps):
+        border_w = round(i / steps * w)
+        border_h = round(i / steps * h)
+        picture = (
+            f"{color('window_border', '▄' * (border_w+2))}\n" +
+            "\n".join([
+                f"{THEME['window_border']}█{THEME['reset']}{' ' * border_w}{THEME['window_border']}█{THEME['reset']}"
+                for _ in range(border_h)
+            ]) +
+            f"\n{color('window_border', '▀' * (border_w+2))}"
+        )
+        print(
+            picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
+            end="", flush=True
+        )
+        time.sleep(0.01)
+    
+    #==================================
     
     center_x = w / 4
     center_y = h / 2
@@ -244,57 +268,36 @@ def intro():
         " " for _ in range(round(w/2))
         for _ in range(h)
     ])
-    
-    pixels_w = w
-    pixels_h = h
-    '''
-    pixels = [
-        (
-            pixel,
-            center_x + x - round(pixels_w/2),
-            center_y + y - round(pixels_h/2),
-            f"""\033[38;2;{100};{round(max(100, min(255, math.sqrt(
-                (center_x - (x - round(pixels_w/4)))**2 +
-                (center_y - (y - round(pixels_h/4)))**2
-            ) / 60 * 255)))};{round(max(100, min(120, math.sqrt(
-                (center_x + (x - round(pixels_w/4)))**2 +
-                (center_y + (y - round(pixels_h/4)))**2
-            ) / 60 * 255)))}m"""
-        )
-        for y, line in enumerate(picture.split("\n")[:pixels_h])
-        for x, pixel in enumerate(line[:pixels_w])
-        if pixel != " "
-    ]
-    '''
-    
-    radius = max(round(w/4), round(h/2))
+
+    radius = max(round(w/2), round(h/2))
     quantity = 20
-    layers = 500
+    layers = 900
     pixels = [
         (
             random.choice(EFFECT_SYMBOLS),
             center_x + (radius + layer) * math.sin(math.radians(360 / quantity * i)),
             center_y + (radius + layer) * math.cos(math.radians(360 / quantity * i)),
             f"""\033[38;2;{
-                [ 50, 100, 100, 100, 100][i % 4]
+                [200,  50, 50, 100, 100, 100][i % 4]
             };{
-                [100, 200, 150, 200, 255][i % 4]
+                [255, 100, 200, 150, 200, 255][i % 4]
             };{
-                [ 50, 100, 100, 100, 100][i % 4]
+                [200,  50, 50, 100, 100, 100][i % 4]
             }m"""
         )
         for layer in range(layers)
         for i in range(quantity)
     ]
     
+    swirl_strength = 0.063
+    zoom = 0.97
+    
     while True:
-        print(
-            picture + "\033[" + str(len(picture.split('\n'))) + "F",
-            end="", flush=True
-        )
-        
         new_lines = [[" " for _ in range(round(w/2))] for _ in range(h)]
         new_pixels = []
+        
+        swirl_strength -= 0.0002
+        zoom += 0.000115
 
         for char, x, y, color_code in pixels:
             dx = x - center_x
@@ -303,11 +306,11 @@ def intro():
             radius = math.hypot(dx, dy)
             angle = math.atan2(dy, dx)
 
-            swirl_strength = 0.05
+            swirl_strength += 0
             speed = swirl_strength / max(0, radius / 8)
 
             angle += speed
-            radius *= 0.99
+            radius *= zoom
 
             x = center_x + math.cos(angle) * radius
             y = center_y + math.sin(angle) * radius
@@ -321,10 +324,19 @@ def intro():
                 new_lines[iy][ix] = color_code + char + THEME["reset"]
 
         pixels = new_pixels
-        picture = "\n".join([
-            " ".join(line)
-            for line in new_lines
-        ])
+        picture = (
+            f"{color('window_border', '▄' * (w+1))}\n" +
+            "\n".join([
+                f"{THEME['window_border']}█{THEME['reset']}{' '.join(line)}{THEME['window_border']}█{THEME['reset']}"
+                for line in new_lines
+            ]) +
+            f"\n{color('window_border', '▀' * (w+1))}"
+        )
+        
+        print(
+            picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
+            end="", flush=True
+        )
         
         time.sleep(0.0)
 
