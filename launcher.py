@@ -35,7 +35,8 @@ def ansi_cells(line):
 
     return cells
 
-HOSTS_FILE = "hosts.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+HOSTS_FILE = os.path.join(BASE_DIR, "hosts.json")
 STATE_FILE = os.path.expanduser("~/.portal-zero/state.json")
 
 DEFAULT_HOSTS = [
