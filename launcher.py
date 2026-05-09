@@ -93,6 +93,12 @@ THEME = {
 
 FPS = 10
 FRAME_TIME = 1 / FPS
+INTRO_FPS = 25
+INTRO_FRAME_TIME = 1 / INTRO_FPS
+INTRO_QUANTITY = 12
+INTRO_LAYER_FACTOR = 10
+INTRO_ZOOM_START = 0.925
+INTRO_ZOOM_STEP = 0.0008
 
 EFFECT_SYMBOLS = "▪▫◼◻■□▢▣"
 
@@ -400,6 +406,10 @@ def intro():
     w, _ = shutil.get_terminal_size()
     w = max(1, min(w - 2, 100))
     h = len(menu.split("\n")) - 2
+    menu_cells = [
+        ansi_cells(line)[1:-1]
+        for line in menu.split("\n")[1:-1]
+    ]
     
     #== Window Border =================
     
@@ -432,8 +442,8 @@ def intro():
     ])
 
     radius = max(round(w/2), round(h/2))
-    quantity = 5
-    layers = 900
+    quantity = INTRO_QUANTITY
+    layers = int(max(w / 2, h) * INTRO_LAYER_FACTOR)
     pixels = [
         (
             random.choice(EFFECT_SYMBOLS),
@@ -446,7 +456,7 @@ def intro():
     ]
     
     swirl_strength = 0.063
-    zoom = 0.97
+    zoom = INTRO_ZOOM_START
     
     empty = True
     while zoom < 1 or not empty:
@@ -455,8 +465,9 @@ def intro():
         new_pixels = []
         smallest_radius = float("inf")
         
+        frame_start = time.monotonic()
         swirl_strength -= 0.0002
-        zoom += 0.000115
+        zoom += INTRO_ZOOM_STEP
 
         for char, x, y, color_code in pixels:
             dx = x - center_x
@@ -489,13 +500,13 @@ def intro():
         #== Menu =============================
         
         if zoom > 1 and math.isfinite(smallest_radius):
-            menu = draw(0, True)
-            menu_cells = [
-                ansi_cells(line)[1:-1]
-                for line in menu.split("\n")[1:-1]
-            ]
-            for y in range(h):
-                for x in range(w):
+            min_y = max(0, math.floor(center_y - smallest_radius))
+            max_y = min(h, math.ceil(center_y + smallest_radius) + 1)
+            min_x = max(0, math.floor((center_x - smallest_radius) * 2))
+            max_x = min(w, math.ceil((center_x + smallest_radius) * 2) + 1)
+
+            for y in range(min_y, max_y):
+                for x in range(min_x, max_x):
                     dx = (x / 2) - center_x
                     dy = y - center_y
                     distance = math.hypot(dx, dy)
@@ -523,7 +534,8 @@ def intro():
             end="", flush=True
         )
         
-        time.sleep(0.001)
+        elapsed = time.monotonic() - frame_start
+        time.sleep(max(0, INTRO_FRAME_TIME - elapsed))
 
 if __name__ == "__main__":
     intro()
