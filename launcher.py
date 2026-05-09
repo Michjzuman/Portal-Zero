@@ -93,6 +93,8 @@ THEME = {
 
 FPS = 10
 FRAME_TIME = 1 / FPS
+INTRO_FPS = 25
+INTRO_FRAME_TIME = 1 / INTRO_FPS
 
 EFFECT_SYMBOLS = "▪▫◼◻■□▢▣"
 
@@ -402,6 +404,10 @@ def intro():
     w, _ = shutil.get_terminal_size()
     w = max(1, min(w - 2, 100))
     h = len(menu.split("\n")) - 2
+    menu_cells = [
+        ansi_cells(line)[1:-1]
+        for line in menu.split("\n")[1:-1]
+    ]
     
     #== Window Border =================
     #
@@ -434,8 +440,8 @@ def intro():
     ])
 
     radius = max(round(w/2), round(h/2))
-    quantity = 20
-    layers = 900
+    quantity = 12
+    layers = int(max(w / 2, h) * 3)
     pixels = [
         (
             random.choice(EFFECT_SYMBOLS),
@@ -457,8 +463,9 @@ def intro():
         new_pixels = []
         smallest_radius = float("inf")
         
+        frame_start = time.monotonic()
         swirl_strength -= 0.0002
-        zoom += 0.000115
+        zoom += 0.00035
 
         for char, x, y, color_code in pixels:
             dx = x - center_x
@@ -491,11 +498,6 @@ def intro():
         #== Menu =============================
         
         if zoom > 1 and math.isfinite(smallest_radius):
-            menu = draw(0, True)
-            menu_cells = [
-                ansi_cells(line)[1:-1]
-                for line in menu.split("\n")[1:-1]
-            ]
             for y in range(h):
                 for x in range(w):
                     dx = (x / 2) - center_x
@@ -525,7 +527,8 @@ def intro():
             end="", flush=True
         )
         
-        time.sleep(0.001)
+        elapsed = time.monotonic() - frame_start
+        time.sleep(max(0, INTRO_FRAME_TIME - elapsed))
 
 if __name__ == "__main__":
     intro()
