@@ -500,6 +500,11 @@ def intro():
         #== Menu =============================
         
         if zoom > 1 and math.isfinite(smallest_radius):
+            menu = draw(initial_selected_index(), True)
+            menu_cells = [
+                ansi_cells(line)[1:-1]
+                for line in menu.split("\n")[1:-1]
+            ]
             min_y = max(0, math.floor(center_y - smallest_radius))
             max_y = min(h, math.ceil(center_y + smallest_radius) + 1)
             min_x = max(0, math.floor((center_x - smallest_radius) * 2))
