@@ -53,22 +53,22 @@ def load_hosts():
         with open(HOSTS_FILE, "w") as file:
             json.dump(DEFAULT_HOSTS, file, indent=4)
 
-        print(f"{HOSTS_FILE} wurde nicht gefunden und mit einem Beispiel angelegt.")
-        print("Passe die Datei an und starte portal-zero erneut, falls nötig.")
+        print(f"{HOSTS_FILE} was not found and has been created with an example host.")
+        print("Edit the file and restart portal-zero if needed.")
         return DEFAULT_HOSTS
 
     try:
         with open(HOSTS_FILE, "r") as file:
             data = json.load(file)
     except json.JSONDecodeError as error:
-        print(f"{HOSTS_FILE} enthält ungültiges JSON: {error}")
+        print(f"{HOSTS_FILE} contains invalid JSON: {error}")
         return []
     except OSError as error:
-        print(f"{HOSTS_FILE} konnte nicht gelesen werden: {error}")
+        print(f"{HOSTS_FILE} could not be read: {error}")
         return []
 
     if not isinstance(data, list):
-        print(f"{HOSTS_FILE} muss eine JSON-Liste enthalten.")
+        print(f"{HOSTS_FILE} must contain a JSON list.")
         return []
 
     return data
@@ -129,10 +129,8 @@ def show_terminal_size_warning():
     print("\033[?25h\033[0m", end="", flush=True)
     print("PORTAL ZERO")
     print()
-    print(f"Terminal ist zu klein: {width}x{height}")
-    print(f"Benötigt mindestens: {required_width}x{required_height}")
-    print()
-    print("Bitte Terminal vergrößern.")
+    print(f"Terminal too small: {width}x{height}")
+    print(f"Needs at least:     {required_width}x{required_height}")
 
 
 def wait_for_terminal_size():
@@ -217,21 +215,21 @@ def launch_host(host):
     command = build_ssh_command(host)
 
     if command is None:
-        show_message("Host hat keine Adresse.")
+        show_message("Host has no address.")
         return
 
     os.system("clear")
     print("\033[?25h\033[0m", end="", flush=True)
     print(color("logo", "PORTAL ZERO"))
     print()
-    print(color("text", f"Verbinde mit {host.get('title', host.get('host', 'Unknown'))}..."))
+    print(color("text", f"Connecting to {host.get('title', host.get('host', 'Unknown'))}..."))
     print(color("border", " ".join(command)))
     print()
 
     subprocess.run(command)
 
     print()
-    input(color("text", "Verbindung beendet. Enter drücken, um zum Launcher zurückzukehren..."))
+    input(color("text", "Connection closed. Press Enter to return to the launcher..."))
     print("\033[?25l", end="", flush=True)
     os.system("clear")
 
@@ -243,7 +241,7 @@ def show_message(message):
     print()
     print(color("text", message))
     print()
-    input(color("text", "Enter drücken, um zurückzukehren..."))
+    input(color("text", "Press Enter to return..."))
     print("\033[?25l", end="", flush=True)
     os.system("clear")
 
