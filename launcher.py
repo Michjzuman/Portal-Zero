@@ -10,6 +10,7 @@ import select
 import subprocess
 import math
 import re
+import shlex
 
 ansi_regex = re.compile(r"\033\[[0-9;]*m")
 
@@ -34,8 +35,46 @@ def ansi_cells(line):
 
     return cells
 
-with open("hosts.json", "r") as file:
-    hosts = json.load(file)
+HOSTS_FILE = "hosts.json"
+STATE_FILE = os.path.expanduser("~/.portal-zero/state.json")
+
+DEFAULT_HOSTS = [
+    {
+        "title": "Example Server",
+        "host": "example.com",
+        "user": "user",
+        "port": 22
+    }
+]
+
+
+def load_hosts():
+    if not os.path.exists(HOSTS_FILE):
+        with open(HOSTS_FILE, "w") as file:
+            json.dump(DEFAULT_HOSTS, file, indent=4)
+
+        print(f"{HOSTS_FILE} wurde nicht gefunden und mit einem Beispiel angelegt.")
+        print("Passe die Datei an und starte portal-zero erneut, falls nötig.")
+        return DEFAULT_HOSTS
+
+    try:
+        with open(HOSTS_FILE, "r") as file:
+            data = json.load(file)
+    except json.JSONDecodeError as error:
+        print(f"{HOSTS_FILE} enthält ungültiges JSON: {error}")
+        return []
+    except OSError as error:
+        print(f"{HOSTS_FILE} konnte nicht gelesen werden: {error}")
+        return []
+
+    if not isinstance(data, list):
+        print(f"{HOSTS_FILE} muss eine JSON-Liste enthalten.")
+        return []
+
+    return data
+
+
+hosts = load_hosts()
 
 THEME = {
     "reset": "\033[0m",
@@ -62,6 +101,51 @@ LOGO = [
     "█▄█ █ █ █▄█  █  █▄█ █     ▄▀  █▄▄▄▄▄█ █▄▄▄█ █     █  ",
     "█   █▄█ █▀▄  █  █ █ █▄▄ ▄█▄▄▄ █▄▄▄▄▄▄ █ ▀▄▄ █▄▄▄▄▄█  ",
 ]
+
+
+def required_terminal_size():
+    table = [host.get("title", "No title") for host in hosts] or ["No hosts found"]
+    table_max = max(len(line) for line in table)
+    table_width = len(f"  ╭────{'─' * table_max}───────────╮")
+    required_width = max(max(len(line) for line in LOGO), table_width) + 2
+
+    rows = len(table)
+    required_height = 19 + (4 * rows)
+
+    return required_width, required_height
+
+
+def terminal_size_ok():
+    width, height = shutil.get_terminal_size()
+    required_width, required_height = required_terminal_size()
+    return width >= required_width and height >= required_height
+
+
+def show_terminal_size_warning():
+    width, height = shutil.get_terminal_size()
+    required_width, required_height = required_terminal_size()
+
+    os.system("clear")
+    print("\033[?25h\033[0m", end="", flush=True)
+    print("PORTAL ZERO")
+    print()
+    print(f"Terminal ist zu klein: {width}x{height}")
+    print(f"Benötigt mindestens: {required_width}x{required_height}")
+    print()
+    print("Bitte Terminal vergrößern.")
+
+
+def wait_for_terminal_size():
+    warned = False
+
+    while not terminal_size_ok():
+        show_terminal_size_warning()
+        warned = True
+        time.sleep(0.25)
+
+    if warned:
+        os.system("clear")
+        print("\033[?25l", end="", flush=True)
 
 
 def color(name, text):
@@ -91,10 +175,24 @@ def make_effect(width, direction):
     ])
 
 
+def normalize_ssh_options(options):
+    if not options:
+        return []
+
+    if isinstance(options, str):
+        return shlex.split(options)
+
+    if isinstance(options, list):
+        return [str(option) for option in options]
+
+    return []
+
+
 def build_ssh_command(host):
     user = host.get("user")
     hostname = host.get("host")
     port = host.get("port", 22)
+    key = host.get("key") or host.get("identity_file")
 
     if not hostname:
         return None
@@ -104,7 +202,15 @@ def build_ssh_command(host):
     if user:
         target = f"{user}@{hostname}"
 
-    return ["ssh", "-p", str(port), target]
+    command = ["ssh", "-p", str(port)]
+
+    if key:
+        command.extend(["-i", os.path.expanduser(str(key))])
+
+    command.extend(normalize_ssh_options(host.get("options")))
+    command.append(target)
+
+    return command
 
 
 def launch_host(host):
@@ -142,9 +248,46 @@ def show_message(message):
     os.system("clear")
 
 
+def host_identity(host):
+    user = host.get("user", "")
+    hostname = host.get("host", "")
+    port = host.get("port", 22)
+    return f"{user}@{hostname}:{port}"
+
+
+def load_state():
+    try:
+        with open(STATE_FILE, "r") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_state_for_host(host):
+    try:
+        os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+        with open(STATE_FILE, "w") as file:
+            json.dump({"last_host": host_identity(host)}, file, indent=4)
+    except OSError:
+        pass
+
+
+def initial_selected_index():
+    if not hosts:
+        return 0
+
+    last_host = load_state().get("last_host")
+
+    for index, host in enumerate(hosts):
+        if host_identity(host) == last_host:
+            return index
+
+    return 0
+
+
 def draw(selected_index, hidden = False):
     width, _ = shutil.get_terminal_size()
-    width = min(width, 100)
+    width = max(1, min(width - 2, 100))
 
     table = [
         host.get('title', 'No title')
@@ -211,7 +354,7 @@ def draw(selected_index, hidden = False):
 
 
 def main():
-    selected_index = 0
+    selected_index = initial_selected_index()
     old_settings = termios.tcgetattr(sys.stdin)
 
     try:
@@ -220,7 +363,13 @@ def main():
 
         while True:
             frame_start = time.monotonic()
-            width, _ = shutil.get_terminal_size()
+
+            if not terminal_size_ok():
+                show_terminal_size_warning()
+                time.sleep(0.25)
+                print("\033[?25l", end="", flush=True)
+                continue
+
             key = read_key()
 
             if key == "\033[A" and hosts:
@@ -228,6 +377,7 @@ def main():
             elif key == "\033[B" and hosts:
                 selected_index = (selected_index + 1) % len(hosts)
             elif key in ["\n", "\r"] and hosts:
+                save_state_for_host(hosts[selected_index])
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
                 launch_host(hosts[selected_index])
                 old_settings = termios.tcgetattr(sys.stdin)
@@ -245,11 +395,12 @@ def main():
 
 
 def intro():
-    menu = draw(0, True)
+    wait_for_terminal_size()
+    menu = draw(initial_selected_index(), True)
     
     #w, h = shutil.get_terminal_size()
     w, _ = shutil.get_terminal_size()
-    w = min(w, 100)
+    w = max(1, min(w - 2, 100))
     h = len(menu.split("\n")) - 2
     
     #== Window Border =================
