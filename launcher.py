@@ -402,25 +402,25 @@ def intro():
     h = len(menu.split("\n")) - 2
     
     #== Window Border =================
-    #
-    #steps = 100
-    #for i in range(steps):
-    #    border_w = round(i / steps * w)
-    #    border_h = round(i / steps * h)
-    #    picture = (
-    #        f"{color('window_border', '▄' * (border_w+2))}\n" +
-    #        "\n".join([
-    #            f"{THEME['window_border']}█{THEME['reset']}{' ' * border_w}{THEME['window_border']}█{THEME['reset']}"
-    #            for _ in range(border_h)
-    #        ]) +
-    #        f"\n{color('window_border', '▀' * (border_w+2))}"
-    #    )
-    #    print(
-    #        picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
-    #        end="", flush=True
-    #    )
-    #    time.sleep(0.01)
-    #
+    
+    steps = 100
+    for i in range(steps):
+        border_w = round(i / steps * w)
+        border_h = round(i / steps * h)
+        picture = (
+            f"{color('window_border', '▄' * (border_w+2))}\n" +
+            "\n".join([
+                f"{THEME['window_border']}█{THEME['reset']}{' ' * border_w}{THEME['window_border']}█{THEME['reset']}"
+                for _ in range(border_h)
+            ]) +
+            f"\n{color('window_border', '▀' * (border_w+2))}"
+        )
+        print(
+            picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
+            end="", flush=True
+        )
+        time.sleep(0.01)
+    
     #==================================
     
     center_x = w / 4
@@ -432,7 +432,7 @@ def intro():
     ])
 
     radius = max(round(w/2), round(h/2))
-    quantity = 7
+    quantity = 5
     layers = 900
     pixels = [
         (
