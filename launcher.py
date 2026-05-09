@@ -13,12 +13,33 @@ import re
 
 ansi_regex = re.compile(r"\033\[[0-9;]*m")
 
+
+def ansi_cells(line):
+    cells = []
+    style = ""
+    i = 0
+
+    while i < len(line):
+        match = ansi_regex.match(line, i)
+
+        if match:
+            code = match.group(0)
+            style = "" if code == THEME["reset"] else style + code
+            i = match.end()
+            continue
+
+        char = line[i]
+        cells.append(f"{style}{char}{THEME['reset']}" if style else char)
+        i += 1
+
+    return cells
+
 with open("hosts.json", "r") as file:
     hosts = json.load(file)
 
 THEME = {
     "reset": "\033[0m",
-    "effect": "\033[38;2;50;255;180m",
+    "effect": "\033[38;2;0;200;100m\033[1m",
     "logo": "\033[38;2;255;255;255m\033[1m",
     "border": "\033[38;2;100;100;100m",
     "bg": "\033[38;2;100;100;100m",
@@ -28,7 +49,7 @@ THEME = {
     "selected_box": "\033[38;2;255;255;255m\033[1m",
     "selected_button": "\033[38;2;0;200;240m\033[1m",
     "selected_arrow": "\033[38;2;0;200;240m\033[1m",
-    "window_border": "\033[38;2;0;100;50m\033[1m",
+    "window_border": "\033[38;2;0;200;100m\033[1m",
 }
 
 FPS = 10
@@ -45,16 +66,6 @@ LOGO = [
 
 def color(name, text):
     return f"{THEME[name]}{text}{THEME['reset']}"
-
-
-def safe_len(text):
-    # Grobe Terminal-Breite: Emojis werden meistens als 2 Spalten gerendert.
-    length = 0
-
-    for char in text:
-        length += 2 if ord(char) > 0xFFFF else 1
-
-    return length
 
 
 def read_key():
@@ -143,7 +154,7 @@ def draw(selected_index, hidden = False):
     if not table:
         table = ["No hosts found"]
 
-    table_max = max(safe_len(line) for line in table)
+    table_max = max(len(line) for line in table)
 
     logo = "\n".join([
         f"{' ' * max(0, width - len(line))}{color('logo', line)}"
@@ -162,7 +173,7 @@ def draw(selected_index, hidden = False):
         button_color = "selected_button" if selected else "button_border"
         arrow_color = "selected_arrow" if selected else "arrow"
         text_color = "selected_box" if selected else "text"
-        padding = " " * (table_max - safe_len(line))
+        padding = " " * (table_max - len(line))
 
         rows.append("\n".join([
             f"  {color(box_color, '│')}    {' ' * table_max}     {color(button_color, '╭───╮')} {color(box_color, '│')}",
@@ -242,32 +253,32 @@ def intro():
     h = len(menu.split("\n")) - 2
     
     #== Window Border =================
-    
-    steps = 100
-    for i in range(steps):
-        border_w = round(i / steps * w)
-        border_h = round(i / steps * h)
-        picture = (
-            f"{color('window_border', '▄' * (border_w+2))}\n" +
-            "\n".join([
-                f"{THEME['window_border']}█{THEME['reset']}{' ' * border_w}{THEME['window_border']}█{THEME['reset']}"
-                for _ in range(border_h)
-            ]) +
-            f"\n{color('window_border', '▀' * (border_w+2))}"
-        )
-        print(
-            picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
-            end="", flush=True
-        )
-        time.sleep(0.01)
-    
+    #
+    #steps = 100
+    #for i in range(steps):
+    #    border_w = round(i / steps * w)
+    #    border_h = round(i / steps * h)
+    #    picture = (
+    #        f"{color('window_border', '▄' * (border_w+2))}\n" +
+    #        "\n".join([
+    #            f"{THEME['window_border']}█{THEME['reset']}{' ' * border_w}{THEME['window_border']}█{THEME['reset']}"
+    #            for _ in range(border_h)
+    #        ]) +
+    #        f"\n{color('window_border', '▀' * (border_w+2))}"
+    #    )
+    #    print(
+    #        picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
+    #        end="", flush=True
+    #    )
+    #    time.sleep(0.01)
+    #
     #==================================
     
     center_x = w / 4
     center_y = h / 2
     
     picture = "\n".join([
-        " " for _ in range(round(w/2))
+        " " for _ in range(w)
         for _ in range(h)
     ])
 
@@ -279,13 +290,7 @@ def intro():
             random.choice(EFFECT_SYMBOLS),
             center_x + (radius + layer) * math.sin(math.radians(360 / quantity * i)),
             center_y + (radius + layer) * math.cos(math.radians(360 / quantity * i)),
-            f"""\033[38;2;{
-                [200,  50, 50, 100, 100, 100][i % 4]
-            };{
-                [255, 100, 200, 150, 200, 255][i % 4]
-            };{
-                [200,  50, 50, 100, 100, 100][i % 4]
-            }m"""
+            f"\033[38;2;{[200, 50, 50, 100][i % 4]};{[255, 100, 200, 150][i % 4]};{[200, 50, 50, 100][i % 4]}m"
         )
         for layer in range(layers)
         for i in range(quantity)
@@ -297,8 +302,9 @@ def intro():
     empty = True
     while zoom < 1 or not empty:
         empty = True
-        new_lines = [[" " for _ in range(round(w/2))] for _ in range(h)]
+        new_lines = [[" " for _ in range(w)] for _ in range(h)]
         new_pixels = []
+        smallest_radius = float("inf")
         
         swirl_strength -= 0.0002
         zoom += 0.000115
@@ -311,31 +317,56 @@ def intro():
             angle = math.atan2(dy, dx)
 
             swirl_strength += 0
-            speed = swirl_strength / max(0, radius / 8)
+            speed = swirl_strength / max(0.001, radius / 8)
 
             angle += speed
             radius *= zoom
+            smallest_radius = min(smallest_radius, radius)
 
             x = center_x + math.cos(angle) * radius
             y = center_y + math.sin(angle) * radius
 
             new_pixels.append((char, x, y, color_code))
 
-            ix = round(x)
+            ix = round(x * 2)
             iy = round(y)
 
-            if 0 <= ix < round(w/2) and 0 <= iy < h:
+            if 0 <= ix < w and 0 <= iy < h:
                 new_lines[iy][ix] = color_code + char + THEME["reset"]
                 empty = False
 
         pixels = new_pixels
+        
+        #== Menu =============================
+        
+        if zoom > 1 and math.isfinite(smallest_radius):
+            menu = draw(0, True)
+            menu_cells = [
+                ansi_cells(line)[1:-1]
+                for line in menu.split("\n")[1:-1]
+            ]
+            for y in range(h):
+                for x in range(w):
+                    dx = (x / 2) - center_x
+                    dy = y - center_y
+                    distance = math.hypot(dx, dy)
+
+                    if distance <= smallest_radius:
+                        menu_y = y
+                        menu_x = x
+
+                        if menu_y < len(menu_cells) and menu_x < len(menu_cells[menu_y]):
+                            new_lines[y][x] = menu_cells[menu_y][menu_x]
+        
+        #=====================================
+        
         picture = (
-            f"{color('window_border', '▄' * (w+1))}\n" +
+            f"{color('window_border', '▄' * (w+2))}\n" +
             "\n".join([
-                f"{THEME['window_border']}█{THEME['reset']}{' '.join(line)}{THEME['window_border']}█{THEME['reset']}"
+                f"{THEME['window_border']}█{THEME['reset']}{''.join(line)}{THEME['window_border']}█{THEME['reset']}"
                 for line in new_lines
             ]) +
-            f"\n{color('window_border', '▀' * (w+1))}"
+            f"\n{color('window_border', '▀' * (w+2))}"
         )
         
         print(
@@ -343,7 +374,7 @@ def intro():
             end="", flush=True
         )
         
-        time.sleep(0.0001)
+        time.sleep(0.001)
 
 if __name__ == "__main__":
     intro()
