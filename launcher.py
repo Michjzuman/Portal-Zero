@@ -79,7 +79,7 @@ hosts = load_hosts()
 
 THEME = {
     "reset": "\033[0m",
-    "effect": "\033[38;2;0;200;100m\033[1m",
+    "effect": "\033[38;2;70;255;170m\033[1m",
     "logo": "\033[38;2;255;255;255m\033[1m",
     "border": "\033[38;2;100;100;100m",
     "bg": "\033[38;2;100;100;100m",
@@ -89,7 +89,7 @@ THEME = {
     "selected_box": "\033[38;2;255;255;255m\033[1m",
     "selected_button": "\033[38;2;0;200;240m\033[1m",
     "selected_arrow": "\033[38;2;0;200;240m\033[1m",
-    "window_border": "\033[38;2;0;200;100m\033[1m",
+    "window_border": "\033[38;2;0;70;50m\033[1m",
 }
 
 FPS = 10
@@ -361,8 +361,13 @@ def draw(selected_index, hidden = False):
 def main():
     selected_index = initial_selected_index()
     old_settings = termios.tcgetattr(sys.stdin)
-
+    h = 0
+    
     try:
+        wait_for_terminal_size()
+        menu = draw(initial_selected_index(), True)
+        h = len(menu.split("\n")) - 2
+
         tty.setcbreak(sys.stdin.fileno())
         print("\033[?25l", end="", flush=True)
 
@@ -387,165 +392,174 @@ def main():
                 launch_host(hosts[selected_index])
                 old_settings = termios.tcgetattr(sys.stdin)
                 tty.setcbreak(sys.stdin.fileno())
-            elif key in ["q", "\x03"]:
+            elif key == "\x03":
+                raise KeyboardInterrupt
+            elif key == "q":
                 break
 
             draw(selected_index)
 
             elapsed = time.monotonic() - frame_start
             time.sleep(max(0, FRAME_TIME - elapsed))
+    except KeyboardInterrupt:
+        print("\n" * (h + 1))
+        sys.exit(130)
     finally:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
         print("\033[?25h\033[0m", end="", flush=True)
 
 
 def intro():
-    wait_for_terminal_size()
-    menu = draw(initial_selected_index(), True)
+    h = 0
     
-    #w, h = shutil.get_terminal_size()
-    w, _ = shutil.get_terminal_size()
-    w = max(1, min(w - 2, 100))
-    h = len(menu.split("\n")) - 2
-    menu_cells = [
-        ansi_cells(line)[1:-1]
-        for line in menu.split("\n")[1:-1]
-    ]
-    
-    #== Window Border =================
-    
-    steps = 100
-    for i in range(steps):
-        border_w = round(i / steps * w)
-        border_h = round(i / steps * h)
-        picture = (
-            f"{color('window_border', '▄' * (border_w+2))}\n" +
-            "\n".join([
-                f"{THEME['window_border']}█{THEME['reset']}{' ' * border_w}{THEME['window_border']}█{THEME['reset']}"
-                for _ in range(border_h)
-            ]) +
-            f"\n{color('window_border', '▀' * (border_w+2))}"
-        )
-        print(
-            picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
-            end="", flush=True
-        )
-        time.sleep(0.01)
-    
-    #==================================
-    
-    center_x = w / 4
-    center_y = h / 2
-    
-    picture = "\n".join([
-        " " for _ in range(w)
-        for _ in range(h)
-    ])
+    try:
+        wait_for_terminal_size()
+        menu = draw(initial_selected_index(), True)
+        
+        #w, h = shutil.get_terminal_size()
+        w, _ = shutil.get_terminal_size()
+        w = max(1, min(w - 2, 100))
+        h = len(menu.split("\n")) - 2
+        menu_cells = [
+            ansi_cells(line)[1:-1]
+            for line in menu.split("\n")[1:-1]
+        ]
 
-    radius = max(round(w/2), round(h/2))
-    quantity = INTRO_QUANTITY
-    layers = int(max(w / 2, h) * INTRO_LAYER_FACTOR)
-    pixels = [
-        (
-            random.choice(EFFECT_SYMBOLS),
-            center_x + (radius + layer) * math.sin(math.radians(360 / quantity * i)),
-            center_y + (radius + layer) * math.cos(math.radians(360 / quantity * i)),
-            f"\033[38;2;{[200, 50, 50, 100][i % 4]};{[255, 100, 200, 150][i % 4]};{[200, 50, 50, 100][i % 4]}m"
-        )
-        for layer in range(layers)
-        for i in range(quantity)
-    ]
-    
-    swirl_strength = 0.063
-    zoom = INTRO_ZOOM_START
-    
-    empty = True
-    while zoom < 1 or not empty:
+        #== Window Border =================
+        
+        steps = 100
+        for i in range(steps):
+            border_w = round(i / steps * w)
+            border_h = round(i / steps * h)
+            picture = (
+                f"{color('window_border', '▄' * (border_w+2))}\n" +
+                "\n".join([
+                    f"{THEME['window_border']}█{THEME['reset']}{' ' * border_w}{THEME['window_border']}█{THEME['reset']}"
+                    for _ in range(border_h)
+                ]) +
+                f"\n{color('window_border', '▀' * (border_w+2))}"
+            )
+            print(
+                picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
+                end="", flush=True
+            )
+            time.sleep(0.01)
+        
+        #==================================
+        
+        center_x = w / 4
+        center_y = h / 2
+        
+        picture = "\n".join([
+            " " for _ in range(w)
+            for _ in range(h)
+        ])
+
+        radius = max(round(w/2), round(h/2))
+        quantity = INTRO_QUANTITY
+        layers = int(max(w / 2, h) * INTRO_LAYER_FACTOR)
+        pixels = [
+            (
+                random.choice(EFFECT_SYMBOLS),
+                center_x + (radius + layer) * math.sin(math.radians(360 / quantity * i)),
+                center_y + (radius + layer) * math.cos(math.radians(360 / quantity * i)),
+                f"\033[38;2;{[200, 50, 50, 100][i % 4]};{[255, 100, 200, 150][i % 4]};{[200, 50, 50, 100][i % 4]}m"
+            )
+            for layer in range(layers)
+            for i in range(quantity)
+        ]
+        
+        swirl_strength = 0.063
+        zoom = INTRO_ZOOM_START
+        
         empty = True
-        new_lines = [[" " for _ in range(w)] for _ in range(h)]
-        new_pixels = []
-        smallest_radius = float("inf")
-        
-        frame_start = time.monotonic()
-        swirl_strength -= 0.0002
-        zoom += INTRO_ZOOM_STEP
+        while zoom < 1 or not empty:
+            empty = True
+            new_lines = [[" " for _ in range(w)] for _ in range(h)]
+            new_pixels = []
+            smallest_radius = float("inf")
+            
+            frame_start = time.monotonic()
+            swirl_strength -= 0.0002
+            zoom += INTRO_ZOOM_STEP
 
-        for char, x, y, color_code in pixels:
-            dx = x - center_x
-            dy = y - center_y
+            for char, x, y, color_code in pixels:
+                dx = x - center_x
+                dy = y - center_y
 
-            radius = math.hypot(dx, dy)
-            angle = math.atan2(dy, dx)
+                radius = math.hypot(dx, dy)
+                angle = math.atan2(dy, dx)
 
-            swirl_strength += 0
-            speed = swirl_strength / max(0.001, radius / 8)
+                swirl_strength += 0
+                speed = swirl_strength / max(0.001, radius / 8)
 
-            angle += speed
-            radius *= zoom
-            smallest_radius = min(smallest_radius, radius)
+                angle += speed
+                radius *= zoom
+                smallest_radius = min(smallest_radius, radius)
 
-            x = center_x + math.cos(angle) * radius
-            y = center_y + math.sin(angle) * radius
+                x = center_x + math.cos(angle) * radius
+                y = center_y + math.sin(angle) * radius
 
-            new_pixels.append((char, x, y, color_code))
+                new_pixels.append((char, x, y, color_code))
 
-            ix = round(x * 2)
-            iy = round(y)
+                ix = round(x * 2)
+                iy = round(y)
 
-            if 0 <= ix < w and 0 <= iy < h:
-                new_lines[iy][ix] = color_code + char + THEME["reset"]
-                empty = False
+                if 0 <= ix < w and 0 <= iy < h:
+                    new_lines[iy][ix] = color_code + char + THEME["reset"]
+                    empty = False
 
-        pixels = new_pixels
-        
-        #== Menu =============================
-        
-        if zoom > 1 and math.isfinite(smallest_radius):
-            menu = draw(initial_selected_index(), True)
-            menu_cells = [
-                ansi_cells(line)[1:-1]
-                for line in menu.split("\n")[1:-1]
-            ]
-            min_y = max(0, math.floor(center_y - smallest_radius))
-            max_y = min(h, math.ceil(center_y + smallest_radius) + 1)
-            min_x = max(0, math.floor((center_x - smallest_radius) * 2))
-            max_x = min(w, math.ceil((center_x + smallest_radius) * 2) + 1)
+            pixels = new_pixels
+            
+            #== Menu =============================
+            
+            if zoom > 1 and math.isfinite(smallest_radius):
+                menu = draw(initial_selected_index(), True)
+                menu_cells = [
+                    ansi_cells(line)[1:-1]
+                    for line in menu.split("\n")[1:-1]
+                ]
+                min_y = max(0, math.floor(center_y - smallest_radius))
+                max_y = min(h, math.ceil(center_y + smallest_radius) + 1)
+                min_x = max(0, math.floor((center_x - smallest_radius) * 2))
+                max_x = min(w, math.ceil((center_x + smallest_radius) * 2) + 1)
 
-            for y in range(min_y, max_y):
-                for x in range(min_x, max_x):
-                    dx = (x / 2) - center_x
-                    dy = y - center_y
-                    distance = math.hypot(dx, dy)
+                for y in range(min_y, max_y):
+                    for x in range(min_x, max_x):
+                        dx = (x / 2) - center_x
+                        dy = y - center_y
+                        distance = math.hypot(dx, dy)
 
-                    if distance <= smallest_radius:
-                        menu_y = y
-                        menu_x = x
+                        if distance <= smallest_radius:
+                            menu_y = y
+                            menu_x = x
 
-                        if menu_y < len(menu_cells) and menu_x < len(menu_cells[menu_y]):
-                            new_lines[y][x] = menu_cells[menu_y][menu_x]
-        
-        #=====================================
-        
-        picture = (
-            f"{color('window_border', '▄' * (w+2))}\n" +
-            "\n".join([
-                f"{THEME['window_border']}█{THEME['reset']}{''.join(line)}{THEME['window_border']}█{THEME['reset']}"
-                for line in new_lines
-            ]) +
-            f"\n{color('window_border', '▀' * (w+2))}"
-        )
-        
-        print(
-            picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
-            end="", flush=True
-        )
-        
-        elapsed = time.monotonic() - frame_start
-        time.sleep(max(0, INTRO_FRAME_TIME - elapsed))
+                            if menu_y < len(menu_cells) and menu_x < len(menu_cells[menu_y]):
+                                new_lines[y][x] = menu_cells[menu_y][menu_x]
+            
+            #=====================================
+            
+            picture = (
+                f"{color('window_border', '▄' * (w+2))}\n" +
+                "\n".join([
+                    f"{THEME['window_border']}█{THEME['reset']}{''.join(line)}{THEME['window_border']}█{THEME['reset']}"
+                    for line in new_lines
+                ]) +
+                f"\n{color('window_border', '▀' * (w+2))}"
+            )
+            
+            print(
+                picture + "\033[" + str(len(picture.split('\n')) - 1) + "F",
+                end="", flush=True
+            )
+            
+            elapsed = time.monotonic() - frame_start
+            time.sleep(max(0, INTRO_FRAME_TIME - elapsed))     
+    except KeyboardInterrupt:
+        print("\n" * (h+1))
+        print("\033[?25h\033[0m", end="", flush=True)
+        sys.exit(130)
 
 if __name__ == "__main__":
-    try:
-        intro()
-        main()
-    except KeyboardInterrupt:
-        exit()
+    intro()
+    main()
