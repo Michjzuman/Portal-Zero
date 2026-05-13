@@ -544,5 +544,8 @@ def intro():
         time.sleep(max(0, INTRO_FRAME_TIME - elapsed))
 
 if __name__ == "__main__":
-    intro()
-    main()
+    try:
+        intro()
+        main()
+    except KeyboardInterrupt:
+        exit()
